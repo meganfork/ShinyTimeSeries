@@ -1,0 +1,118 @@
+---
+title: "BuoyPlots"
+author: "Megan Fork"
+date: "November 16, 2015"
+output: html_document
+---
+
+This takes stitched data files from Fourth Creek in Knoxville, TN. There are three buoys arranged longitudinally from the mouth fof Fourth Creek toward the mainstem Tennessee River (impounded here by the Ft. Loudon Dam - all the buoys are in lentic parts of the reservoir).
+Data included are:
+- Temperature at top of water column (0.25 m depth) in degrees C
+- Temperature neart the bottom of the water column (the actual depth changes based on the reservoir water level, but the figures have been annotated with the summer depths) in degrees C
+- Specific conductivity (here, the depth is a bit wonky, because the loggers were mounted just below the top temperature logger until mid-June [? exact date is in my notebook...] and then moved to just above the bottom temp logger) in microSiemens per cm
+
+In addition, these graphs include data from the City of Knoxville's gauge on Fourth Creek.  These data are:
+- Discharge in cms, converted from cfs
+- Rainfall in mm/h, converted from in/15 m
+
+
+
+```{r R libraries}
+library(dygraphs)
+library(xts)
+library(lubridate)
+
+```
+
+```{r Load in stitched files}
+
+## Read in stiched rain and buoy files:
+
+
+#stitched, munged rainfall data from the City of Knoxville Stormwater:
+FC.rain<-read.csv("Data/Rainfall_FC.csv",header=T)
+
+#Matt hates POSIX
+#setAs("character","myPOSIX", function(from) as.POSIXct(from, format="%Y-%m-%d %H:%M:%S"))
+
+#List the data files for the buoys and read them in as .csv files.  Nine data streams total.
+
+FC.files<-list.files("Data",pattern="stitch_")
+
+setwd("Data")
+
+FC.list<-lapply(FC.files,read.csv,stringsAsFactors=F)
+
+names(FC.list)<-c("FC1Bottom","FC1Cond","FC1Top","FC2Bottom","FC2Cond","FC2Top","FC3Bottom","FC3Cond","FC3Top")
+
+for(i in 1:length(FC.list)){
+  s <- FC.list[[i]]
+  s$min5 <- ymd_hms(s$date.time, tz='Etc/GMT-5')
+  FC.list[[i]] <- s
+}
+
+head(FC.list[[1]])
+```
+
+Eventually, I'd like to turn this into a Shiny app in which users can choose to turn on and off different data streams among the three buoys.  Then we can figure out other cool stuff to do to it.
+
+```{r Create three dygraphs, one for each buoy, with timescales linked}
+
+#So, I think it's angry about knitting with the wd set to "Data", so I change it back to the root folder for the project here. 
+setwd("C:/Users/Megan/Desktop/ShinyTimeSeries")
+
+### Put things into .xts format:
+
+#City of Knoxville data (Q and rainfall):
+FC.rain.xts<-as.xts(FC.rain$rainfall.mm,order.by=as.POSIXct(FC.rain$date.time,origin="1970-01-01"))
+FC.Q.xts<-as.xts(FC.rain$Q.cms,order.by=as.POSIXct(FC.rain$date.time,origin="1970-01-01"))
+
+
+FC1Top.xts<-as.xts(FC.list[["FC1Top"]]$Temp.C,order.by=FC.list[["FC1Top"]]$min5)
+FC1Bottom.xts<-as.xts(FC.list[["FC1Bottom"]]$Temp.C,order.by=FC.list[["FC1Bottom"]]$min5)
+FC1Cond.xts<-as.xts(FC.list[["FC1Cond"]]$CondFull,order.by=FC.list[["FC1Cond"]]$min5)
+FC2Top.xts<-as.xts(FC.list[["FC2Top"]]$Temp.C,order.by=FC.list[["FC2Top"]]$min5)
+FC2Bottom.xts<-as.xts(FC.list[["FC2Bottom"]]$Temp.C,order.by=FC.list[["FC2Bottom"]]$min5)
+FC2Cond.xts<-as.xts(FC.list[["FC2Cond"]]$CondFull,order.by=FC.list[["FC2Cond"]]$min5)
+FC3Top.xts<-as.xts(FC.list[["FC3Top"]]$Temp.C,order.by=FC.list[["FC3Top"]]$min5)
+FC3Bottom.xts<-as.xts(FC.list[["FC3Bottom"]]$Temp.C,order.by=FC.list[["FC3Bottom"]]$min5)
+FC3Cond.xts<-as.xts(FC.list[["FC3Cond"]]$CondFull,order.by=FC.list[["FC3Cond"]]$min5)
+
+
+### Plot the dy graphs:
+
+#FC1 with temp and conductivity together
+dygraph(cbind(FC.rain.xts,FC.Q.xts,FC1Top.xts,FC1Bottom.xts,FC1Cond.xts),ylab="hourly rainfall (mm), Q (cms), Temp (C)",group="FC",main="Fourth Creek 1")%>%
+  dyOptions(connectSeparatedPoints=T)%>%
+  dySeries("..1",drawPoints=T,label="rain",color="grey") %>%
+  dySeries("..2",drawPoints=T,label="Q",color="blue") %>%
+  dySeries("..3",drawPoints=T,label="FC1-Top",color="red") %>%
+  dySeries("..4",drawPoints=T,label="FC1-Bottom",color="darkred")%>%
+  dySeries("..5",drawPoints=T,label="FC1-Cond",color="darkgreen",axis='y2')%>%
+  dyLegend(show="always")%>%
+  dyAxis("y2",label="Conductivity (uS/cm)")
+
+#FC2 with temp and conductivity together
+dygraph(cbind(FC.rain.xts,FC.Q.xts,FC2Top.xts,FC2Bottom.xts,FC2Cond.xts),ylab="hourly rainfall (mm), Q (cms), Temp (C)",group="FC",main="Fourth Creek 2")%>%
+  dyOptions(connectSeparatedPoints=T)%>%
+  dySeries("..1",drawPoints=T,label="rain",color="grey") %>%
+  dySeries("..2",drawPoints=T,label="Q",color="blue") %>%
+  dySeries("..3",drawPoints=T,label="FC2-Top",color="red") %>%
+  dySeries("..4",drawPoints=T,label="FC2-Bottom",color="darkred")%>%
+  dySeries("..5",drawPoints=T,label="FC2-Cond",color="darkgreen",axis='y2')%>%
+  dyLegend(show="always")%>%
+  dyAxis("y2",label="Conductivity (uS/cm)")
+
+#FC3 with temp and cond together
+dygraph(cbind(FC.rain.xts,FC.Q.xts,FC3Top.xts,FC3Bottom.xts,FC3Cond.xts),ylab="hourly rainfall (mm), Q (cms), Temp (C)",group="FC",main="Fourth Creek 3")%>%
+  dyOptions(connectSeparatedPoints=T)%>%
+  dySeries("..1",drawPoints=T,label="rain",color="grey") %>%
+  dySeries("..2",drawPoints=T,label="Q",color="blue") %>%
+  dySeries("..3",drawPoints=T,label="FC3-Top",color="red") %>%
+  dySeries("..4",drawPoints=T,label="FC3-Bottom",color="darkred")%>%
+  dySeries("..5",drawPoints=T,label="FC3-Cond",color="darkgreen",axis='y2') %>%
+  dyLegend(show="always")%>%
+  dyAxis("y2",label="Conductivity (uS/cm)")
+
+```
+
